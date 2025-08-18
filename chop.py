@@ -1,6 +1,7 @@
 import subprocess
 import os
 import glob
+import re
 import google.generativeai as genai
 from dotenv import load_dotenv
 
@@ -18,9 +19,9 @@ def run_command(command):
     # print(result.stdout) # Uncomment for debugging
     return True, result.stdout
 
-def find_latest_file(extension):
+def find_latest_file(directory, extension):
     """Finds the most recently created file with a given extension."""
-    list_of_files = glob.glob(f'*.{extension}')
+    list_of_files = glob.glob(os.path.join(directory, f'*.{extension}'))
     if not list_of_files:
         return None
     latest_file = max(list_of_files, key=os.path.getctime)
@@ -29,6 +30,10 @@ def find_latest_file(extension):
 def convert_srt_time_to_ffmpeg(srt_time):
     """Converts SRT timestamp format (00:00:00,000) to FFmpeg format (00:00:00.000)."""
     return srt_time.replace(',', '.')
+
+def sanitize_filename(filename):
+    """Removes invalid characters from a filename."""
+    return re.sub(r'[\\/*?:"<>|]', "", filename)
 
 def main():
     """Main function to run the video clipping process."""
@@ -44,25 +49,36 @@ def main():
                 print("Please enter a positive number.")
         except ValueError:
             print("Invalid input. Please enter a number.")
+
+    # --- Get Video Title ---
+    print("\n--- Getting Video Title ---")
+    title_command = ['yt-dlp', '--get-title', youtube_url]
+    success, video_title = run_command(title_command)
+    if not success:
+        print("Failed to get video title. Exiting.")
+        return
+    video_title = video_title.strip()
+    sanitized_title = sanitize_filename(video_title)
+    
+    # --- Create output directory ---
+    output_dir = os.path.join('output', sanitized_title)
+    os.makedirs(output_dir, exist_ok=True)
+    print(f"Created output directory: {output_dir}")
     
     # --- STEP 1: Download Video ---
     print("\n--- Step 1: Downloading Video ---")
+    video_path = os.path.join(output_dir, f"{sanitized_title}.mp4")
     video_command = [
-        'youtube-dl.exe',
+        'yt-dlp',
+        '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        '-o', video_path,
         youtube_url
     ]
     success, _ = run_command(video_command)
     if not success:
         print("Failed to download video. Exiting.")
         return
-
-    video_filename = find_latest_file('mp4')
-    if not video_filename:
-        video_filename = find_latest_file('webm') # Fallback for webm
-    if not video_filename:
-        print("Could not find the downloaded video file (.mp4 or .webm). Exiting.")
-        return
-    print(f"Found video file: {video_filename}")
+    print(f"Found video file: {video_path}")
 
     # --- STEP 2: Download Subtitles ---
     print("\n--- Step 2: Downloading Subtitles ---")
@@ -72,7 +88,7 @@ def main():
         '--sub-lang', 'en',
         '--sub-format', 'srt',
         '--skip-download',
-        '-o', '"%(title)s.%(ext)s"',
+        '-o', os.path.join(output_dir, f"{sanitized_title}.%(ext)s"),
         youtube_url
     ]
     success, _ = run_command(subtitle_command)
@@ -80,7 +96,7 @@ def main():
         print("Failed to download subtitles. Exiting.")
         return
 
-    subtitle_file = find_latest_file('en.srt')
+    subtitle_file = find_latest_file(output_dir, 'en.srt')
     if not subtitle_file:
         print("Could not find the downloaded subtitle file (.srt). Exiting.")
         return
@@ -168,7 +184,7 @@ Transcript:
         print(f"Error getting response from Gemini AI: {e}")
         return
 
-    with open("viral_clips.txt", "w", encoding="utf-8") as f:
+    with open(os.path.join(output_dir, "viral_clips.txt"), "w", encoding="utf-8") as f:
         f.write(clip_info_text)
     print("Successfully created viral_clips.txt with content from Gemini AI:")
     print(clip_info_text)
@@ -178,13 +194,13 @@ Transcript:
     print(f"\n--- Step 4: Extracting {len(clip_details)} Clips with FFmpeg ---")
     
     for i, clip in enumerate(clip_details):
-        output_filename = f"clip_{i+1}.mp4"
+        output_filename = os.path.join(output_dir, f"clip_{i+1}.mp4")
         print(f"\nExtracting clip {i+1} to {output_filename}...")
         ffmpeg_command = [
             'ffmpeg',
             '-ss', clip['start'],
             '-to', clip['end'],
-            '-i', video_filename,
+            '-i', video_path,
             '-c', 'copy',
             output_filename
         ]
@@ -195,7 +211,7 @@ Transcript:
         else:
             print(f"Successfully extracted clip {i+1}.")
         
-    print(f"\nProcess complete! Your clips have been saved.")
+    print(f"\nProcess complete! Your clips have been saved in '{output_dir}'")
 
 if __name__ == "__main__":
     main()

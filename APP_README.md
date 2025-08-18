@@ -10,7 +10,7 @@ The script performs the following steps:
 
 2.  **Download Video**: It takes the YouTube URL as input and downloads the corresponding video using `youtube-dl.exe`.
 
-3.  **Download Subtitles**: It then downloads the English subtitles for the video using `yt-dlp`.
+3.  **Download Subtitles**: It then downloads the English subtitles for the video in SRT format using `yt-dlp`.
 
 4.  **Find Viral Moments with Gemini AI**: The core of the application lies in its use of the Gemini AI. It sends the video's subtitles to the Gemini API and asks it to find a specified number of "viral moments". The script provides the following criteria to the AI for what constitutes an engaging moment:
     *   Emotional reactions (laughter, surprise, anger, excitement)
