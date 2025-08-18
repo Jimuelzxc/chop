@@ -1,0 +1,92 @@
+
+GUIDE: HOW TO DOWNLOAD FROM YOUTUBE USING TERMINAL (Git Bash)
+
+prompt="""
+!!! You are allowed to use the terminal. !!!
+
+STEP 1. Download video with youtube-dl:
+   Command:
+   youtube-dl.exe {YOUTUBE_URL}
+
+   Example:
+   youtube-dl.exe https://www.youtube.com/watch?v=abcd1234
+
+---
+
+STEP 2. Download subtitles (English auto-generated only, no video):
+   Command:
+   yt-dlp --write-auto-subs --sub-lang en --skip-download -o "%(title)s.%(ext)s" {YOUTUBE_URL}
+
+   Example:
+   yt-dlp --write-auto-subs --sub-lang en --skip-download -o "%(title)s.%(ext)s" https://www.youtube.com/watch?v=abcd1234
+
+---
+
+NOTES:
+- Replace {YOUTUBE_URL} with the actual YouTube link.
+- `youtube-dl` = for downloading videos.
+- `yt-dlp` = for extracting subtitles.
+
+
+
+---
+
+
+
+GUIDE: HOW TO GET TIMESTAMP
+
+!!! You are allowed to use the terminal. !!!
+
+
+STEP 3.
+
+INPUT: Take the YouTube transcript or VTT file as input.(ON OUR FOLDER)
+TASK: Create a file called viral_clip.txt
+
+PROMPT FOR LLM:
+"""
+You are an expert short-form video editor. 
+Your job is to find a single viral moment inside a long-form transcript with timestamps. 
+The chosen clip must be 30–90 seconds long.
+
+Criteria for engaging moments:
+- Emotional reactions (laughter, surprise, anger, excitement)
+- Surprising facts or insights
+- Strong or controversial opinions
+- Clear questions with punchy answers
+- Quotable lines that stand on their own
+
+Instructions:
+1. Read the transcript or VTT file carefully.
+2. Select only ONE clip.
+3. Clip length must be between 30–90 seconds.
+4. Output format must be:
+
+[Start time] → [End time]  
+Reason: [Why this moment is engaging, max 2 sentences]
+"""
+
+
+
+STEP 4.
+
+GUIDE: HOW TO EXTRACT A CLIP USING FFMPEG
+
+!!! You are allowed to use the terminal. !!!
+
+INPUTS:
+- Video file path (from the downloaded YouTube video)
+- Start/End timestamps (from viral_clip.txt)
+
+COMMAND TEMPLATE:
+ffmpeg.exe -ss [START_TIME] -to [END_TIME] -i [VIDEO_PATH] -c copy clip.mp4
+
+EXAMPLE:
+ffmpeg.exe -ss 00:05:00 -to 00:06:30 -i "video.mp4" -c copy clip.mp4
+
+NOTES:
+- Replace [START_TIME] and [END_TIME] with values from viral_clip.txt
+- Replace [VIDEO_PATH] with your downloaded video file name
+- Output file will be saved as clip.mp4 in the current directory
+- `-c copy` ensures fast cutting without re-encoding
+"""
