@@ -37,3 +37,11 @@ This document lists potential features to enhance the functionality and user exp
 - **Benefits:**
     - Saves significant time and bandwidth.
     - Allows for a quick preview of the AI's suggestions before committing to the full process.
+
+### 5. AI Virality Scoring
+- **Description:** After identifying potential clips, use a second AI prompt to score each clip's "virality potential" on a scale of 1-10. The script could then automatically select the highest-scoring clips or present the scores to the user for a final decision.
+- **Example Argument:** `python chop.py --url "..." --score-clips`
+
+### 6. Interactive Clip Selection Mode
+- **Description:** After the AI suggests clips (similar to a `--dry-run`), present them in a numbered list and allow the user to interactively select which ones to render into final video files.
+- **Example Argument:** `python chop.py --url "..." --interactive`
