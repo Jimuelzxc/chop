@@ -26,6 +26,10 @@ def find_latest_file(extension):
     latest_file = max(list_of_files, key=os.path.getctime)
     return latest_file
 
+def convert_srt_time_to_ffmpeg(srt_time):
+    """Converts SRT timestamp format (00:00:00,000) to FFmpeg format (00:00:00.000)."""
+    return srt_time.replace(',', '.')
+
 def main():
     """Main function to run the video clipping process."""
     youtube_url = input("Please enter the YouTube URL: ")
@@ -66,6 +70,7 @@ def main():
         'yt-dlp',
         '--write-auto-subs',
         '--sub-lang', 'en',
+        '--sub-format', 'srt',
         '--skip-download',
         '-o', '"%(title)s.%(ext)s"',
         youtube_url
@@ -75,9 +80,9 @@ def main():
         print("Failed to download subtitles. Exiting.")
         return
 
-    subtitle_file = find_latest_file('en.vtt')
+    subtitle_file = find_latest_file('en.srt')
     if not subtitle_file:
-        print("Could not find the downloaded subtitle file (.vtt). Exiting.")
+        print("Could not find the downloaded subtitle file (.srt). Exiting.")
         return
         
     print(f"Found subtitle file: {subtitle_file}")
@@ -141,12 +146,23 @@ Transcript:
             if not clip.strip():
                 continue
             lines = clip.strip().split('\n')
+            if len(lines) < 2:
+                print(f"Skipping invalid clip chunk: {clip}")
+                continue
             time_line = lines[0]
             reason_line = lines[1]
             
-            start_time, end_time = [t.strip() for t in time_line.replace('[', '').replace(']', '').split('→')]
-            reason = reason_line.replace('Reason:', '').strip()
-            clip_details.append({'start': start_time, 'end': end_time, 'reason': reason})
+            try:
+                start_time, end_time = [t.strip() for t in time_line.replace('[', '').replace(']', '').split('→')]
+                reason = reason_line.replace('Reason:', '').strip()
+
+                start_time_ffmpeg = convert_srt_time_to_ffmpeg(start_time)
+                end_time_ffmpeg = convert_srt_time_to_ffmpeg(end_time)
+
+                clip_details.append({'start': start_time_ffmpeg, 'end': end_time_ffmpeg, 'reason': reason})
+            except ValueError:
+                print(f"Could not parse time from line: {time_line}")
+                continue
 
     except Exception as e:
         print(f"Error getting response from Gemini AI: {e}")
