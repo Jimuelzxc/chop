@@ -30,6 +30,17 @@ def main():
     """Main function to run the video clipping process."""
     youtube_url = input("Please enter the YouTube URL: ")
     
+    while True:
+        try:
+            num_clips_str = input("How many clips would you like to generate? (e.g., 1-5): ")
+            num_clips = int(num_clips_str)
+            if num_clips > 0:
+                break
+            else:
+                print("Please enter a positive number.")
+        except ValueError:
+            print("Invalid input. Please enter a number.")
+    
     # --- STEP 1: Download Video ---
     print("\n--- Step 1: Downloading Video ---")
     video_command = [
@@ -93,8 +104,8 @@ def main():
 
     prompt = f"""
 You are an expert short-form video editor.
-Your job is to find a single viral moment inside a long-form transcript with timestamps.
-The chosen clip must be 10-30 seconds long.
+Your job is to find {num_clips} viral moments inside a long-form transcript with timestamps.
+Each chosen clip must be 10-30 seconds long.
 
 Criteria for engaging moments:
 - Emotional reactions (laughter, surprise, anger, excitement)
@@ -105,9 +116,12 @@ Criteria for engaging moments:
 
 Instructions:
 1. Read the following transcript carefully.
-2. Select only ONE clip.
-3. Clip length must be between 10-30 seconds.
-4. Output format must be ONLY:
+2. Select {num_clips} clips.
+3. Each clip length must be between 10-30 seconds.
+4. Output format must be ONLY, with each clip separated by '---':
+[Start time] → [End time]
+Reason: [Why this moment is engaging, max 2 sentences]
+---
 [Start time] → [End time]
 Reason: [Why this moment is engaging, max 2 sentences]
 
@@ -115,47 +129,57 @@ Transcript:
 {subtitle_content}
 """
 
-    print("Asking Gemini AI to find a viral moment...")
+    print(f"Asking Gemini AI to find {num_clips} viral moments...")
     try:
         response = model.generate_content(prompt)
-        clip_info = response.text
+        clip_info_text = response.text
         
-        # Parse start_time, end_time, and reason from the response
-        lines = clip_info.strip().split('\n')
-        time_line = lines[0]
-        reason_line = lines[1]
+        clips = clip_info_text.strip().split('---')
         
-        start_time, end_time = [t.strip() for t in time_line.replace('[', '').replace(']', '').split('→')]
-        reason = reason_line.replace('Reason:', '').strip()
+        clip_details = []
+        for clip in clips:
+            if not clip.strip():
+                continue
+            lines = clip.strip().split('\n')
+            time_line = lines[0]
+            reason_line = lines[1]
+            
+            start_time, end_time = [t.strip() for t in time_line.replace('[', '').replace(']', '').split('→')]
+            reason = reason_line.replace('Reason:', '').strip()
+            clip_details.append({'start': start_time, 'end': end_time, 'reason': reason})
 
     except Exception as e:
         print(f"Error getting response from Gemini AI: {e}")
         return
 
-    with open("viral_clip.txt", "w", encoding="utf-8") as f:
-        f.write(clip_info)
-    print("Successfully created viral_clip.txt with content from Gemini AI:")
-    print(clip_info)
+    with open("viral_clips.txt", "w", encoding="utf-8") as f:
+        f.write(clip_info_text)
+    print("Successfully created viral_clips.txt with content from Gemini AI:")
+    print(clip_info_text)
 
 
-    # --- STEP 4: Extract Clip with FFmpeg ---
-    print("\n--- Step 4: Extracting Clip with FFmpeg ---")
-    output_filename = "clip.mp4"
-    ffmpeg_command = [
-        'ffmpeg',
-        '-ss', start_time,
-        '-to', end_time,
-        '-i', video_filename,
-        '-c', 'copy',
-        output_filename
-    ]
+    # --- STEP 4: Extract Clips with FFmpeg ---
+    print(f"\n--- Step 4: Extracting {len(clip_details)} Clips with FFmpeg ---")
     
-    success, _ = run_command(ffmpeg_command)
-    if not success:
-        print("Failed to extract clip with FFmpeg.")
-        return
+    for i, clip in enumerate(clip_details):
+        output_filename = f"clip_{i+1}.mp4"
+        print(f"\nExtracting clip {i+1} to {output_filename}...")
+        ffmpeg_command = [
+            'ffmpeg',
+            '-ss', clip['start'],
+            '-to', clip['end'],
+            '-i', video_filename,
+            '-c', 'copy',
+            output_filename
+        ]
         
-    print(f"\nProcess complete! Your clip has been saved as '{output_filename}'")
+        success, _ = run_command(ffmpeg_command)
+        if not success:
+            print(f"Failed to extract clip {i+1} with FFmpeg.")
+        else:
+            print(f"Successfully extracted clip {i+1}.")
+        
+    print(f"\nProcess complete! Your clips have been saved.")
 
 if __name__ == "__main__":
     main()

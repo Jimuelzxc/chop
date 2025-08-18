@@ -6,22 +6,24 @@
 
 The script performs the following steps:
 
-1.  **Download Video**: It takes a YouTube URL as input and downloads the corresponding video using `youtube-dl.exe`.
+1.  **User Input**: It prompts the user for a YouTube URL and the desired number of clips to generate.
 
-2.  **Download Subtitles**: It then downloads the English subtitles for the video using `yt-dlp`.
+2.  **Download Video**: It takes the YouTube URL as input and downloads the corresponding video using `youtube-dl.exe`.
 
-3.  **Find Viral Moment with Gemini AI**: The core of the application lies in its use of the Gemini AI. It sends the video's subtitles to the Gemini API and asks it to find a "viral moment". The script provides the following criteria to the AI for what constitutes an engaging moment:
+3.  **Download Subtitles**: It then downloads the English subtitles for the video using `yt-dlp`.
+
+4.  **Find Viral Moments with Gemini AI**: The core of the application lies in its use of the Gemini AI. It sends the video's subtitles to the Gemini API and asks it to find a specified number of "viral moments". The script provides the following criteria to the AI for what constitutes an engaging moment:
     *   Emotional reactions (laughter, surprise, anger, excitement)
     *   Surprising facts or insights
     *   Strong or controversial opinions
     *   Clear questions with punchy answers
     *   Quotable lines that stand on their own
 
-    The AI is instructed to find a single clip that is 10-30 seconds long.
+    The AI is instructed to find clips that are 10-30 seconds long.
 
-4.  **Save Clip Information**: The start time, end time, and a brief reason for why the moment is engaging (as determined by the AI) are saved into a file named `viral_clip.txt`.
+5.  **Save Clip Information**: The start times, end times, and brief reasons for why each moment is engaging (as determined by the AI) are saved into a file named `viral_clips.txt`.
 
-5.  **Extract Clip**: Finally, the script uses `ffmpeg` to cut the identified segment from the original video file. The resulting clip is saved as `clip.mp4`.
+6.  **Extract Clips**: Finally, the script uses `ffmpeg` to cut the identified segments from the original video file. The resulting clips are saved as `clip_1.mp4`, `clip_2.mp4`, and so on.
 
 ## Dependencies
 
@@ -43,4 +45,4 @@ Then, you can run the script from your terminal:
 python chop.py
 ```
 
-The script will prompt you to enter a YouTube URL. After you provide the URL, it will execute the steps outlined above and, if successful, you will find a `clip.mp4` file in the same directory.
+The script will prompt you to enter a YouTube URL and how many clips you want. After you provide the information, it will execute the steps outlined above and, if successful, you will find your clips (`clip_1.mp4`, etc.) in the same directory.
