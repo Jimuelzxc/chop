@@ -45,4 +45,4 @@ Then, you can run the script from your terminal:
 python chop.py
 ```
 
-The script will prompt you to enter a YouTube URL and how many clips you want. After you provide the information, it will execute the steps outlined above and, if successful, you will find your clips (`clip_1.mp4`, etc.) in the same directory.
+The script will prompt you to enter a YouTube URL and how many clips you want. After you provide the information, it will execute the steps outlined above. If successful, it will create a directory named after the video's title in the 'output' folder. Inside this directory, you will find a separate folder for each clip (e.g., `clip_1`, `clip_2`), each containing the video clip and its corresponding SRT subtitle file.

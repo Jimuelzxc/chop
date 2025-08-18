@@ -33,9 +33,59 @@ def convert_srt_time_to_ffmpeg(srt_time):
 
 def sanitize_filename(filename):
     """Removes invalid characters from a filename."""
-    return re.sub(r'[\\/*?:"<>|]', "", filename)
+    return re.sub(r'[\\/*?:",<>|]', "", filename)
+
+def srt_time_to_seconds(time_str):
+    """Converts SRT time string HH:MM:SS,ms or HH:MM:SS.ms to seconds."""
+    parts = time_str.replace(',', '.').split(':')
+    if len(parts) == 3:
+        try:
+            seconds = float(parts[2])
+            minutes = int(parts[1])
+            hours = int(parts[0])
+            return hours * 3600 + minutes * 60 + seconds
+        except ValueError:
+            return 0.0
+    return 0.0
+
+def seconds_to_srt_time(seconds):
+    """Converts seconds to SRT time string HH:MM:SS,ms."""
+    if seconds < 0:
+        seconds = 0
+    hours = int(seconds // 3600)
+    seconds %= 3600
+    minutes = int(seconds // 60)
+    seconds %= 60
+    milliseconds = int((seconds - int(seconds)) * 1000)
+    seconds = int(seconds)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d},{milliseconds:03d}"
+
+def parse_srt(srt_content):
+    """Parses SRT content and returns a list of subtitle blocks."""
+    subtitle_blocks = srt_content.strip().split('\n\n')
+    subtitles = []
+    for block in subtitle_blocks:
+        lines = block.split('\n')
+        if len(lines) >= 3:
+            try:
+                index = int(lines[0])
+                time_line = lines[1]
+                start_str, end_str = [t.strip() for t in time_line.split('-->')]
+                text = '\n'.join(lines[2:])
+                subtitles.append({
+                    'index': index,
+                    'start': start_str,
+                    'end': end_str,
+                    'text': text
+                })
+            except (ValueError, IndexError):
+                # Skip malformed blocks
+                print(f"Skipping malformed SRT block: {block}")
+                continue
+    return subtitles
 
 def main():
+
     """Main function to run the video clipping process."""
     youtube_url = input("Please enter the YouTube URL: ")
     
@@ -190,28 +240,80 @@ Transcript:
     print(clip_info_text)
 
 
-    # --- STEP 4: Extract Clips with FFmpeg ---
-    print(f"\n--- Step 4: Extracting {len(clip_details)} Clips with FFmpeg ---")
-    
+    # --- STEP 4: Extract Clips and Generate Individual SRTs ---
+    print(f"\n--- Step 4: Extracting {len(clip_details)} Clips with FFmpeg and Generating SRTs ---")
+
+    all_subtitles = parse_srt(subtitle_content)
+
     for i, clip in enumerate(clip_details):
-        output_filename = os.path.join(output_dir, f"clip_{i+1}.mp4")
-        print(f"\nExtracting clip {i+1} to {output_filename}...")
+        clip_num = i + 1
+        clip_start_seconds = srt_time_to_seconds(clip['start'])
+        clip_end_seconds = srt_time_to_seconds(clip['end'])
+
+        # Create a directory for each clip
+        clip_dir = os.path.join(output_dir, f"clip_{clip_num}")
+        os.makedirs(clip_dir, exist_ok=True)
+
+        output_video_path = os.path.join(clip_dir, f"clip_{clip_num}.mp4")
+        output_srt_path = os.path.join(clip_dir, f"clip_{clip_num}.srt")
+
+        print(f"\nExtracting clip {clip_num} to {output_video_path}...")
         ffmpeg_command = [
             'ffmpeg',
             '-ss', clip['start'],
             '-to', clip['end'],
             '-i', video_path,
             '-c', 'copy',
-            output_filename
+            output_video_path
         ]
-        
+
         success, _ = run_command(ffmpeg_command)
         if not success:
-            print(f"Failed to extract clip {i+1} with FFmpeg.")
+            print(f"Failed to extract clip {clip_num} with FFmpeg.")
+            continue # Move to the next clip
         else:
-            print(f"Successfully extracted clip {i+1}.")
-        
-    print(f"\nProcess complete! Your clips have been saved in '{output_dir}'")
+            print(f"Successfully extracted clip {clip_num}.")
+
+        # --- Generate individual SRT for the clip ---
+        print(f"Generating SRT file for clip {clip_num}...")
+        clip_subtitles = []
+        for sub in all_subtitles:
+            sub_start_seconds = srt_time_to_seconds(sub['start'])
+            sub_end_seconds = srt_time_to_seconds(sub['end'])
+
+            # Check if the subtitle is within the clip's time range
+            if sub_start_seconds >= clip_start_seconds and sub_end_seconds <= clip_end_seconds:
+                # Adjust timestamps to be relative to the clip's start time
+                new_start_seconds = sub_start_seconds - clip_start_seconds
+                new_end_seconds = sub_end_seconds - clip_start_seconds
+
+                clip_subtitles.append({
+                    'start': seconds_to_srt_time(new_start_seconds),
+                    'end': seconds_to_srt_time(new_end_seconds),
+                    'text': sub['text']
+                })
+
+        # Write the new SRT file
+        with open(output_srt_path, 'w', encoding='utf-8') as f:
+            for j, sub in enumerate(clip_subtitles):
+                f.write(f"{j+1}\n")
+                f.write(f"{sub['start']} --> {sub['end']}\n")
+                f.write(f"{sub['text']}\n\n")
+
+        print(f"Successfully created SRT file: {output_srt_path}")
+
+    # --- Clean up temporary files ---
+    print("\n--- Cleaning up temporary files ---")
+    try:
+        os.remove(subtitle_file)
+        print(f"Removed temporary subtitle file: {subtitle_file}")
+        viral_clips_path = os.path.join(output_dir, "viral_clips.txt")
+        os.remove(viral_clips_path)
+        print(f"Removed temporary clips info file: {viral_clips_path}")
+    except OSError as e:
+        print(f"Error during cleanup: {e}")
+
+    print(f"\nProcess complete! Your clips and subtitles have been saved in '{output_dir}'")
 
 if __name__ == "__main__":
     main()
