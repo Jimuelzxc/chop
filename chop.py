@@ -2,6 +2,7 @@ import subprocess
 import os
 import glob
 import re
+import argparse
 import google.generativeai as genai
 from dotenv import load_dotenv
 
@@ -85,20 +86,19 @@ def parse_srt(srt_content):
     return subtitles
 
 def main():
-
     """Main function to run the video clipping process."""
-    youtube_url = input("Please enter the YouTube URL: ")
+    parser = argparse.ArgumentParser(description="Automatically find viral moments in a YouTube video and clip them.")
+    parser.add_argument('--url', required=True, help="The URL of the YouTube video.")
+    parser.add_argument('--clips', required=True, type=int, help="The number of clips to generate.")
     
-    while True:
-        try:
-            num_clips_str = input("How many clips would you like to generate? (e.g., 1-5): ")
-            num_clips = int(num_clips_str)
-            if num_clips > 0:
-                break
-            else:
-                print("Please enter a positive number.")
-        except ValueError:
-            print("Invalid input. Please enter a number.")
+    args = parser.parse_args()
+    
+    youtube_url = args.url
+    num_clips = args.clips
+
+    if num_clips <= 0:
+        print("Error: The number of clips must be a positive integer.")
+        return
 
     # --- Get Video Title ---
     print("\n--- Getting Video Title ---")
