@@ -5,8 +5,18 @@ import re
 import argparse
 import google.generativeai as genai
 from dotenv import load_dotenv
+import shutil
 
 load_dotenv()
+
+def get_python_command():
+    """Determines the correct Python command to use (py or python)."""
+    if shutil.which("py"):
+        return "py"
+    elif shutil.which("python"):
+        return "python"
+    else:
+        raise Exception("Neither 'py' nor 'python' command found. Please install Python.")
 
 def run_command(command):
     """Runs a command in the shell and prints its output."""
@@ -30,7 +40,23 @@ def find_latest_file(directory, extension):
 
 def convert_srt_time_to_ffmpeg(srt_time):
     """Converts SRT timestamp format (00:00:00,000) to FFmpeg format (00:00:00.000)."""
-    return srt_time.replace(',', '.')
+    # Replace comma with dot for milliseconds
+    ffmpeg_time = srt_time.replace(',', '.')
+    # Validate and clean the time format (HH:MM:SS.mmm)
+    parts = ffmpeg_time.split(':')
+    if len(parts) == 3:
+        try:
+            hours = int(parts[0])
+            minutes = int(parts[1])
+            seconds_ms = parts[2].split('.')
+            seconds = int(seconds_ms[0])
+            milliseconds = int(seconds_ms[1]) if len(seconds_ms) > 1 else 0
+            # Reconstruct valid time string
+            return f"{hours:02d}:{minutes:02d}:{seconds:02d}.{milliseconds:03d}"
+        except (ValueError, IndexError):
+            # If parsing fails, return original string (may cause error in FFmpeg)
+            return ffmpeg_time
+    return ffmpeg_time
 
 def sanitize_filename(filename):
     """Removes invalid characters from a filename."""
@@ -100,9 +126,16 @@ def main():
         print("Error: The number of clips must be a positive integer.")
         return
 
+    # Determine the correct Python command
+    try:
+        python_cmd = get_python_command()
+    except Exception as e:
+        print(f"Error: {e}")
+        return
+
     # --- Get Video Title ---
     print("\n--- Getting Video Title ---")
-    title_command = ['yt-dlp', '--get-title', youtube_url]
+    title_command = [python_cmd, '-m', 'yt_dlp', '--get-title', youtube_url]
     success, video_title = run_command(title_command)
     if not success:
         print("Failed to get video title. Exiting.")
@@ -117,10 +150,9 @@ def main():
     
     # --- STEP 1: Download Video ---
     print("\n--- Step 1: Downloading Video ---")
-    video_path = os.path.join(output_dir, f"{sanitized_title}.mp4")
+    video_path = os.path.join(output_dir, f"{sanitized_title}.%(ext)s")
     video_command = [
-        'yt-dlp',
-        '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        python_cmd, '-m', 'yt_dlp',
         '-o', video_path,
         youtube_url
     ]
@@ -128,13 +160,21 @@ def main():
     if not success:
         print("Failed to download video. Exiting.")
         return
+    
+    # Find the actual downloaded file since we used %(ext)s
+    video_files = glob.glob(os.path.join(output_dir, f"{sanitized_title}.*"))
+    video_files = [f for f in video_files if not f.endswith('.srt')]
+    if not video_files:
+        print("Could not find downloaded video file. Exiting.")
+        return
+    video_path = video_files[0]
     print(f"Found video file: {video_path}")
 
     # --- STEP 2: Download Subtitles ---
     print("\n--- Step 2: Downloading Subtitles ---")
     subtitle_command = [
-        'yt-dlp',
-        '--write-auto-subs',
+        python_cmd, '-m', 'yt_dlp',
+        '--write-auto-sub',
         '--sub-lang', 'en',
         '--sub-format', 'srt',
         '--skip-download',
@@ -148,8 +188,13 @@ def main():
 
     subtitle_file = find_latest_file(output_dir, 'en.srt')
     if not subtitle_file:
-        print("Could not find the downloaded subtitle file (.srt). Exiting.")
-        return
+        # Try different subtitle file patterns
+        srt_files = glob.glob(os.path.join(output_dir, '*.srt'))
+        if srt_files:
+            subtitle_file = srt_files[0]  # Use the first .srt file found
+        else:
+            print("Could not find any subtitle file (.srt). Exiting.")
+            return
         
     print(f"Found subtitle file: {subtitle_file}")
 
@@ -237,7 +282,11 @@ Transcript:
     with open(os.path.join(output_dir, "viral_clips.txt"), "w", encoding="utf-8") as f:
         f.write(clip_info_text)
     print("Successfully created viral_clips.txt with content from Gemini AI:")
-    print(clip_info_text)
+    # Safely print the content (avoiding encoding issues in some terminals)
+    try:
+        print(clip_info_text)
+    except UnicodeEncodeError:
+        print("(Content contains characters that cannot be displayed in this terminal)")
 
 
     # --- STEP 4: Extract Clips and Generate Individual SRTs ---
